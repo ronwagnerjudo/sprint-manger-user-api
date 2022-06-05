@@ -11,7 +11,7 @@ from flask_login import UserMixin
 
 
 app = Flask("Google Login App")  #naming our application
-app.secret_key = "GeekyHuman.com"  #it is necessary to set a password when dealing with OAuth 2.0
+app.secret_key = "34infojfrfjn3oi53gg"  #it is necessary to set a password when dealing with OAuth 2.0
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"  #this is to set our environment to https because OAuth 2.0 only supports https environments
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users-sprint-manager.db'
