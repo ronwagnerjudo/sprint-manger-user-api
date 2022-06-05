@@ -25,7 +25,7 @@ class Users(UserMixin, db.Model):
     name = db.Column(db.String)
     email = db.Column(db.String, unique=True)
 
-# db.create_all()
+db.create_all()
 
 GOOGLE_CLIENT_ID = os.environ["GOOGLE_CLIENT_ID"]  #enter your client id you got from Google console
 client_secrets_file = os.path.join(pathlib.Path(__file__).parent, "client_secret.json")  #set the path to where the .json file you got Google console is
