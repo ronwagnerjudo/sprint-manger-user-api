@@ -101,7 +101,7 @@ def index():
 @app.route("/protected_area")  #the page where only the authorized users can go to
 @login_is_required
 def protected_area():
-    return render_template("index.html")  #the logout button 
+    return "hello bro"  #the logout button 
 
 
 if __name__ == "__main__": 
