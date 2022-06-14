@@ -4,18 +4,17 @@ import flask
 import jwt
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
-from werkzeug.security import generate_password_hash, check_password_hash
 import requests
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from google.auth.transport.requests import Request
 
-# app config
+#--------------------------------APP CONFIG-----------------------------------------
 app = flask.Flask(__name__)
-app.secret_key = os.urandom(12)
+app.secret_key = os.urandom(12).hex()
 CORS(app,  supports_credentials=True)
 
-# db
+#------------------------------DATEBASE----------------------------------------------
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users-sprint-manager.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
@@ -24,16 +23,16 @@ class UsersSprintManager(db.Model):
     __tablename__ = "users"
     id = db.Column(db.Integer, primary_key=True)
     credentials = db.Column(db.Text, unique=True)
-    sub_id = db.Column(db.String, unique=True)
+    sub = db.Column(db.String, unique=True)
 
 db.create_all()
-  
-# jwt
+
+#--------------------------------JWT--------------------------------------------------
 JWT_SECRET = 'secret'
 JWT_ALGORITHM = 'HS256'
 JWT_EXP_DELTA_SECONDS = 600
 
-# google scopes
+#--------------------------------GOOGLE SCOPES----------------------------------------
 google_scopes = ['openid', 'https://www.googleapis.com/auth/calendar', 
         'https://www.googleapis.com/auth/userinfo.email', 
         'https://www.googleapis.com/auth/userinfo.profile']
@@ -46,9 +45,11 @@ def credentials_to_dict(credentials):
         'client_secret': credentials.client_secret,
         'scopes': credentials.scopes}
 
+
+#--------------------------------APP--------------------------------------------------
 @app.route('/login', methods=["GET","POST"])
 def login():
-    flow = Flow.from_client_secrets_file('./client_secrets.json', scopes=google_scopes)
+    flow = Flow.from_client_secrets_file('./client_secret.json', scopes=google_scopes)
     flow.redirect_uri = flask.request.base_url + "/callback"
     # Enable offline access so that you can refresh an access token without
     # re-prompting the user for permission. Recommended for web server apps.
@@ -65,44 +66,51 @@ def callback():
     # verified in the authorization server response.
     state = flask.session['state']
 
-    flow = Flow.from_client_secrets_file('./client_secrets.json', scopes=google_scopes, state=state)
+    flow = Flow.from_client_secrets_file('./client_secret.json', scopes=google_scopes, state=state)
     flow.redirect_uri = flask.url_for("callback", _external=True)
 
     # Use the authorization server's response to fetch the OAuth 2.0 tokens.
     authorization_response = flask.request.url
     flow.fetch_token(authorization_response=authorization_response)
-    credentials = credentials_to_dict(flow.credentials) #save in database and sub id
+    credentials = flow.credentials
+    credentials_dict = credentials_to_dict(credentials) 
 
-    token = credentials["token"]
+    token = credentials_dict["token"]
     userinfo_response = requests.get(f"https://www.googleapis.com/oauth2/v1/userinfo?access_token={token}")
     userinfo = userinfo_response.json()
     sub_id = userinfo["sub"]
 
-    # Adding new user info (sub id and creds0 into the db, if the user still don't  exist
+    # Adding new user info (sub id and creds) into the db, if the user still don't  exist
     new_user = UsersSprintManager(
-        credentials = json.dumps(credentials),
+        credentials = json.dumps(credentials_dict),
         sub_id = sub_id
     )
     db.session.add(new_user)
     db.session.commit()
 
-    jwt_token = jwt.encode(sub_id, JWT_SECRET, JWT_ALGORITHM)
+    jwt_token = jwt.encode({"sub": sub_id}, JWT_SECRET, JWT_ALGORITHM)
 
     resp = flask.make_response(flask.redirect("https://127.0.0.1:3000/tasks"))
-    resp.set_cookie("creds", jwt_token)
-    return resp, flask.jsonify({credentials})
+    resp.set_cookie("jwt", jwt_token)
+    return resp, flask.jsonify({"credentials": credentials})
 
 @app.route('/userinfo')
 def userinfo():
-    if not flask.request.cookies.get('creds'):
+    if not flask.request.cookies.get('jwt'):
         response = flask.jsonify({"status": 401, "error": "Missing Creds"})
         return response, 401
     try: 
-        google_creds = jwt.decode(flask.request.cookies.get('creds'), JWT_SECRET, JWT_ALGORITHM)
+        google_creds = jwt.decode(flask.request.cookies.get('jwt'), JWT_SECRET, JWT_ALGORITHM)
         creds = Credentials(google_creds)
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
+                refreshed_creds = creds.refresh(Request())
+                refreshed_creds_text = json.dumps(refreshed_creds)
+                current_user = google_creds["sub"]
+                creds_to_update = UsersSprintManager.query.filter_by(sub=current_user).first()
+                creds_to_update.credentials = refreshed_creds_text
+                db.session.commit()
+
             else:
                 return 401
         
@@ -123,7 +131,7 @@ def userinfo():
 @app.route("/logout")
 def logout():
     resp = flask.make_response(flask.redirect("https://127.0.0.1:3000"))
-    resp.delete_cookie("creds")
+    resp.delete_cookie("jwt")
     return resp
 
 if __name__ == '__main__':
