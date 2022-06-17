@@ -1,7 +1,5 @@
-from crypt import methods
 import os
 import json
-import ssl
 import flask
 import jwt
 from flask_cors import CORS
