@@ -1,5 +1,7 @@
+from crypt import methods
 import os
 import json
+import ssl
 import flask
 import jwt
 from flask_cors import CORS
@@ -8,6 +10,7 @@ import requests
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from google.auth.transport.requests import Request
+
 
 #--------------------------------APP CONFIG-----------------------------------------
 app = flask.Flask(__name__)
@@ -64,6 +67,8 @@ def login():
 def callback():
     # Specify the state when creating the flow in the callback so that it can
     # verified in the authorization server response.
+    if not flask.session['state'] == flask.request.args['state']:
+        flask.abort(403)
     state = flask.session['state']
 
     flow = Flow.from_client_secrets_file('./client_secret.json', scopes=google_scopes, state=state)
@@ -92,7 +97,7 @@ def callback():
 
     resp = flask.make_response(flask.redirect("https://127.0.0.1:3000/tasks"))
     resp.set_cookie("jwt", jwt_token)
-    return resp, flask.jsonify({"credentials": credentials})
+    return resp, flask.jsonify({"credentials": credentials}), 200
 
 @app.route('/userinfo')
 def userinfo():
@@ -128,6 +133,35 @@ def userinfo():
         return response, 401
 
 
+@app.route("/get-credentials", methods=["POST"])
+def get_creds():
+    if not flask.request.cookies.get('jwt'):
+        response = flask.jsonify({"status": 401, "error": "Missing Creds"})
+        return response, 401
+    try:
+        google_creds = jwt.decode(flask.request.cookies.get('jwt'), JWT_SECRET, JWT_ALGORITHM)
+        
+        if google_creds:
+            sub = google_creds["sub"]
+            user_credentials = UsersSprintManager.query.filter_by(sub=sub).first()
+            if user_credentials:
+                user_creds_json = json.loads(user_credentials)
+                return flask.jsonify({"sub": sub, "user_credentials": user_creds_json}), 200
+            else:
+                return flask.jsonify({"error": "User credntials not found"}), 404
+        else:
+            return flask.jsonify({"error": "Not valid token"}), 403
+
+
+    except jwt.ExpiredSignatureError:
+        response = flask.jsonify({"status": 401, "error": "Expried permissons!"})
+        return response, 401
+    except ValueError:
+        print(ValueError)
+        response = flask.jsonify({"status": 401, "error": "Not Valid creds!"})
+        return response, 401
+
+
 @app.route("/logout")
 def logout():
     resp = flask.make_response(flask.redirect("https://127.0.0.1:3000"))
@@ -135,4 +169,4 @@ def logout():
     return resp
 
 if __name__ == '__main__':
-    app.run(port=5000, debug=True)
+    app.run(port=5000, debug=True, ssl_context='adhoc')
