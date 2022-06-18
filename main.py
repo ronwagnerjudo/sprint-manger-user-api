@@ -27,6 +27,7 @@ class UsersSprintManager(db.Model):
     sub = db.Column(db.String, unique=True)
 
 db.create_all()
+db.session.commit()
 
 #--------------------------------JWT--------------------------------------------------
 JWT_SECRET = 'secret'
@@ -81,21 +82,23 @@ def callback():
     token = credentials_dict["token"]
     userinfo_response = requests.get(f"https://www.googleapis.com/oauth2/v1/userinfo?access_token={token}")
     userinfo = userinfo_response.json()
-    sub_id = userinfo["sub"]
+    sub_id = userinfo["id"]
 
     # Adding new user info (sub id and creds) into the db, if the user still don't  exist
-    new_user = UsersSprintManager(
-        credentials = json.dumps(credentials_dict),
-        sub_id = sub_id
-    )
-    db.session.add(new_user)
-    db.session.commit()
+    user_exists = UsersSprintManager.query.filter_by(sub=sub_id).first()
+    if not user_exists:
+        new_user = UsersSprintManager(
+            credentials = json.dumps(credentials_dict),
+            sub = sub_id
+        )
+        db.session.add(new_user)
+        db.session.commit()
 
     jwt_token = jwt.encode({"sub": sub_id}, JWT_SECRET, JWT_ALGORITHM)
 
-    resp = flask.make_response(flask.redirect("https://127.0.0.1:3000/tasks"))
+    resp = flask.make_response(flask.redirect("https://127.0.0.1:3001/tasks"))
     resp.set_cookie("jwt", jwt_token)
-    return resp, flask.jsonify({"credentials": credentials}), 200
+    return resp
 
 @app.route('/userinfo')
 def userinfo():
@@ -141,9 +144,9 @@ def get_creds():
         
         if google_creds:
             sub = google_creds["sub"]
-            user_credentials = UsersSprintManager.query.filter_by(sub=sub).first()
-            if user_credentials:
-                user_creds_json = json.loads(user_credentials)
+            user = UsersSprintManager.query.filter_by(sub=sub).first()
+            if user:
+                user_creds_json = json.loads(user.credentials)
                 return flask.jsonify({"sub": sub, "user_credentials": user_creds_json}), 200
             else:
                 return flask.jsonify({"error": "User credntials not found"}), 404
