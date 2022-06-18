@@ -51,26 +51,26 @@ def credentials_to_dict(credentials):
 #--------------------------------APP--------------------------------------------------
 @app.route('/login', methods=["GET","POST"])
 def login():
-    flow = Flow.from_client_secrets_file('./client_secret.json', scopes=google_scopes)
+    flow = Flow.from_client_secrets_file("./client_secret.json", scopes=google_scopes)
     flow.redirect_uri = flask.request.base_url + "/callback"
     # Enable offline access so that you can refresh an access token without
     # re-prompting the user for permission. Recommended for web server apps.
     # Enable incremental authorization. Recommended as a best practice.
-    authorization_url, state = flow.authorization_url(access_type='offline',include_granted_scopes='true')
+    authorization_url, state = flow.authorization_url(access_type="offline", include_granted_scopes="true", prompt="consent")
     
     # Store the state so the callback can verify the auth server response.
-    flask.session['state'] = state
+    flask.session["state"] = state
     return flask.redirect(authorization_url)
 
 @app.route('/login/callback', methods=["GET", "POST"])
 def callback():
     # Specify the state when creating the flow in the callback so that it can
     # verified in the authorization server response.
-    if not flask.session['state'] == flask.request.args['state']:
+    if not flask.session["state"] == flask.request.args["state"]:
         flask.abort(403)
-    state = flask.session['state']
+    state = flask.session["state"]
 
-    flow = Flow.from_client_secrets_file('./client_secret.json', scopes=google_scopes, state=state)
+    flow = Flow.from_client_secrets_file("./client_secret.json", scopes=google_scopes, state=state)
     flow.redirect_uri = flask.url_for("callback", _external=True)
 
     # Use the authorization server's response to fetch the OAuth 2.0 tokens.
@@ -96,35 +96,41 @@ def callback():
 
     jwt_token = jwt.encode({"sub": sub_id}, JWT_SECRET, JWT_ALGORITHM)
 
-    resp = flask.make_response(flask.redirect("https://127.0.0.1:3001/tasks"))
+    resp = flask.make_response(flask.redirect("https://127.0.0.1:3000/tasks"))
     resp.set_cookie("jwt", jwt_token)
     return resp
 
 @app.route('/userinfo')
 def userinfo():
-    if not flask.request.cookies.get('jwt'):
+    if not flask.request.cookies.get("jwt"):
         response = flask.jsonify({"status": 401, "error": "Missing Creds"})
         return response, 401
     try: 
-        google_creds = jwt.decode(flask.request.cookies.get('jwt'), JWT_SECRET, JWT_ALGORITHM)
-        creds = Credentials(google_creds)
+        cookie_jwt = jwt.decode(flask.request.cookies.get("jwt"), JWT_SECRET, JWT_ALGORITHM)
+        user = UsersSprintManager.query.filter_by(sub=cookie_jwt["sub"]).first()
+        credentials = json.loads(user.credentials)
+        print(credentials)
+        creds = Credentials(credentials)
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
                 refreshed_creds = creds.refresh(Request())
-                refreshed_creds_text = json.dumps(refreshed_creds)
-                current_user = google_creds["sub"]
+                credentials = credentials_to_dict(refreshed_creds)
+                print(credentials)
+                refreshed_creds_text = json.dumps(credentials)
+                current_user = cookie_jwt["sub"]
+                print("!!!!!!!!!!!!!!!!!!!!")
                 creds_to_update = UsersSprintManager.query.filter_by(sub=current_user).first()
                 creds_to_update.credentials = refreshed_creds_text
                 db.session.commit()
 
             else:
                 return 401
-        
-        token = google_creds["token"]
+
+        token = credentials["token"]
         userinfo_response = requests.get(f"https://www.googleapis.com/oauth2/v1/userinfo?access_token={token}")
         userinfo = userinfo_response.json()
 
-        return flask.jsonify(user_info={"email": userinfo["email"], "picture": userinfo["picture"]}), 200
+        return flask.jsonify({"email": userinfo["email"], "picture": userinfo["picture"]}), 200
     except jwt.ExpiredSignatureError:
         response = flask.jsonify({"status": 401, "error": "Expried permissons!"})
         return response, 401
@@ -134,16 +140,16 @@ def userinfo():
         return response, 401
 
 
-@app.route("/get-credentials", methods=["POST"])
+@app.route('/get-credentials', methods=["POST"])
 def get_creds():
-    if not flask.request.cookies.get('jwt'):
+    if not flask.request.cookies.get("jwt"):
         response = flask.jsonify({"status": 401, "error": "Missing Creds"})
         return response, 401
     try:
-        google_creds = jwt.decode(flask.request.cookies.get('jwt'), JWT_SECRET, JWT_ALGORITHM)
+        cookie_jwt = jwt.decode(flask.request.cookies.get("jwt"), JWT_SECRET, JWT_ALGORITHM)
         
-        if google_creds:
-            sub = google_creds["sub"]
+        if cookie_jwt:
+            sub = cookie_jwt["sub"]
             user = UsersSprintManager.query.filter_by(sub=sub).first()
             if user:
                 user_creds_json = json.loads(user.credentials)
@@ -163,7 +169,7 @@ def get_creds():
         return response, 401
 
 
-@app.route("/logout")
+@app.route('/logout')
 def logout():
     resp = flask.make_response(flask.redirect("https://127.0.0.1:3000"))
     resp.delete_cookie("jwt")
