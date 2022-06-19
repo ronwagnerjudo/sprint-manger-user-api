@@ -114,9 +114,7 @@ def userinfo():
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
-                print(creds)
                 credentials = credentials_to_dict(creds)
-                print(credentials)
                 refreshed_creds_text = json.dumps(credentials)
                 current_user = cookie_jwt["sub"]
                 creds_to_update = UsersSprintManager.query.filter_by(sub=current_user).first()
