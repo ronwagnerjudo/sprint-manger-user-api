@@ -110,15 +110,15 @@ def userinfo():
         user = UsersSprintManager.query.filter_by(sub=cookie_jwt["sub"]).first()
         credentials = json.loads(user.credentials)
         print(credentials)
-        creds = Credentials(credentials)
+        creds = Credentials.from_authorized_user_info(credentials, google_scopes)
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
-                refreshed_creds = creds.refresh(Request())
-                credentials = credentials_to_dict(refreshed_creds)
+                creds.refresh(Request())
+                print(creds)
+                credentials = credentials_to_dict(creds)
                 print(credentials)
                 refreshed_creds_text = json.dumps(credentials)
                 current_user = cookie_jwt["sub"]
-                print("!!!!!!!!!!!!!!!!!!!!")
                 creds_to_update = UsersSprintManager.query.filter_by(sub=current_user).first()
                 creds_to_update.credentials = refreshed_creds_text
                 db.session.commit()
