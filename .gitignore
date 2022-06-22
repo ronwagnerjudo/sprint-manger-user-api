@@ -131,3 +131,5 @@ dmypy.json
 client_secret.json
 
 users-sprint-manager.db
+
+.DS_Store
