@@ -34,7 +34,7 @@ db.create_all()
 db.session.commit()
 
 #--------------------------------JWT--------------------------------------------------
-JWT_SECRET = 'secret'
+JWT_SECRET = app.secret_key
 JWT_ALGORITHM = 'HS256'
 JWT_EXP_DELTA_SECONDS = 600
 
@@ -53,7 +53,7 @@ def credentials_to_dict(credentials):
 
 
 #--------------------------------APP--------------------------------------------------
-@app.route('/login', methods=["GET","POST"])
+@app.route('/login', methods=["GET", "POST"])
 def login():
 	flow = Flow.from_client_secrets_file("./client_secret.json", scopes=google_scopes)
 	flow.redirect_uri = flask.request.base_url + "/callback"
@@ -103,7 +103,7 @@ def callback():
 		db.session.commit()
 
 	jwt_token = jwt.encode({"sub": sub_id}, JWT_SECRET, JWT_ALGORITHM)
-
+	 
 	resp = flask.make_response(flask.redirect("https://127.0.0.1:3000/tasks"))
 	resp.set_cookie("jwt", jwt_token)
 	return resp
@@ -117,7 +117,6 @@ def userinfo():
 		cookie_jwt = jwt.decode(flask.request.cookies.get("jwt"), JWT_SECRET, JWT_ALGORITHM)
 		user = UsersSprintManager.query.filter_by(sub=cookie_jwt["sub"]).first()
 		credentials = json.loads(user.credentials)
-		print(credentials)
 		creds = Credentials.from_authorized_user_info(credentials, google_scopes)
 		if not creds or not creds.valid:
 			if creds and creds.expired and creds.refresh_token:
@@ -145,8 +144,8 @@ def userinfo():
 		response = flask.jsonify({"status": 401, "error": "Not Valid creds!"})
 		return response, 401
 
-@app.route('/get-user-settings', methods=["GET", "POST"])
-def get_user_settings():
+@app.route('/user-settings', methods=["GET", "POST"])
+def user_settings():
 	if not flask.request.cookies.get("jwt"):
 		response = flask.jsonify({"status": 401, "error": "Missing Creds"})
 		return response, 401
@@ -176,7 +175,7 @@ def get_user_settings():
 		response = flask.jsonify({"status": 401, "error": "Not Valid creds!"})
 		return response, 401
 
-@app.route('/get-user-details', methods=["POST"])
+@app.route('/get-user-details', methods=["GET", "POST"])
 def get_user_details():
 	if not flask.request.cookies.get("jwt"):
 		response = flask.jsonify({"status": 401, "error": "Missing Creds"})
@@ -218,3 +217,4 @@ def logout():
 
 if __name__ == '__main__':
 	app.run(port=5000, debug=True, ssl_context='adhoc')
+
