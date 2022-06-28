@@ -1,5 +1,6 @@
 import os
 import json
+from pickle import TRUE
 import flask
 import jwt
 from flask_cors import CORS
@@ -34,7 +35,7 @@ db.create_all()
 db.session.commit()
 
 #--------------------------------JWT--------------------------------------------------
-JWT_SECRET = app.secret_key
+JWT_SECRET = "app.secret_key"
 JWT_ALGORITHM = 'HS256'
 JWT_EXP_DELTA_SECONDS = 600
 
@@ -167,6 +168,8 @@ def user_settings():
 				user.end_work_hours = end_work_hours
 				db.session.commit()
 
+				return flask.jsonify({"message": "User settings changed"}), 200
+
 	except jwt.ExpiredSignatureError:
 		response = flask.jsonify({"status": 401, "error": "Expried permissons!"})
 		return response, 401
@@ -180,6 +183,7 @@ def get_user_details():
 	if not flask.request.cookies.get("jwt"):
 		response = flask.jsonify({"status": 401, "error": "Missing Creds"})
 		return response, 401
+	print(type(flask.request.cookies.get("jwt")))
 	try:
 		cookie_jwt = jwt.decode(flask.request.cookies.get("jwt"), JWT_SECRET, JWT_ALGORITHM)
 		
@@ -192,7 +196,7 @@ def get_user_details():
 				user_sprint_time = user.sprint_time
 				user_start_work_hours = user.start_work_hours
 				user_end_work_hours = user.end_work_hours
-				return flask.jsonify({"sub": sub, "userCredentials": user_creds_json, "userPreference": user_preference,
+				return flask.jsonify(user_details={"sub": sub, "userCredentials": user_creds_json, "userPreference": user_preference,
 				 "userSprintTime": user_sprint_time, "userStartWorkHours": user_start_work_hours, "userEndWorkHours": user_end_work_hours}), 200
 			else:
 				return flask.jsonify({"error": "User credntials not found"}), 404
