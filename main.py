@@ -183,7 +183,7 @@ def get_user_details():
 	if not flask.request.cookies.get("jwt"):
 		response = flask.jsonify({"status": 401, "error": "Missing Creds"})
 		return response, 401
-	print(type(flask.request.cookies.get("jwt")))
+
 	try:
 		cookie_jwt = jwt.decode(flask.request.cookies.get("jwt"), JWT_SECRET, JWT_ALGORITHM)
 		
