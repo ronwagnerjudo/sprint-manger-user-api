@@ -105,7 +105,7 @@ def callback():
 
 	jwt_token = jwt.encode({"sub": sub_id}, JWT_SECRET, JWT_ALGORITHM)
 	 
-	resp = flask.make_response(flask.redirect("https://127.0.0.1:3000/tasks"))
+	resp = flask.make_response(flask.redirect("http://127.0.0.1:3000/tasks"))
 	resp.set_cookie("jwt", jwt_token)
 	return resp
 
@@ -215,7 +215,7 @@ def get_user_details():
 
 @app.route('/logout')
 def logout():
-	resp = flask.make_response(flask.redirect("https://127.0.0.1:3000"))
+	resp = flask.make_response(flask.redirect("http://127.0.0.1:3000"))
 	resp.delete_cookie("jwt")
 	return resp
 
