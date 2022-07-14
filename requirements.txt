@@ -5,5 +5,3 @@ Flask-SQLAlchemy==2.5.1
 PyJWT==2.3.0
 Flask-Cors==3.0.10
 requests==2.27.1
-logging==0.5.1.2
-json==2.0.9
