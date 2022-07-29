@@ -155,8 +155,12 @@ def userinfo():
             if not creds or not creds.valid:
                 if creds and creds.expired and creds.refresh_token:
                     logging.info("Creds expired.")
-                    creds.refresh(Request())
-                    logging.info("Creds refreshed.")
+                    try:
+                        creds.refresh(Request())
+                        logging.info("Creds refreshed.")
+                    except:
+                        logging.info("Credentials could not be refreshed.")
+                        return flask.jsonify({"error": "Credentials could not be refreshed, possibly the authorization was revoked by the user."}), 500
                     credentials = credentials_to_dict(creds)
                     refreshed_creds_text = json.dumps(credentials)
                     current_user = cookie_jwt["sub"]
