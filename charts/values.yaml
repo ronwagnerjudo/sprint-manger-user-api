@@ -1,0 +1,51 @@
+replicaCount: 1
+
+image:
+  repository: localhost:5000/sprint-manager-user-api
+  pullPolicy: Always 
+  tag: "latest"
+
+service:
+  type: ClusterIP
+  port: 80
+
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+serviceAccount:
+  create: false
+  annotations: {}
+  name: ""
+podAnnotations: {}
+podSecurityContext: {}
+securityContext: {}
+ingress:
+  enabled: true
+  className: ""
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+    kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: 
+      paths:
+        - path: /api/user-api/(.*)
+          pathType: Prefix
+  tls: []
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80

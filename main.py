@@ -1,5 +1,6 @@
 import os
 import json
+import datetime
 import flask
 import jwt
 import logging
@@ -61,11 +62,15 @@ def credentials_to_dict(credentials):
 
 
 #--------------------------------APP--------------------------------------------------
+@app.route('/', methods=["GET"])
+def status():
+    return {'status': "200"}, 200
+
 @app.route('/login', methods=["GET", "POST"])
 def login():
     logging.info("Starting flow.")
     flow = Flow.from_client_secrets_file("./client_secret.json", scopes=google_scopes)
-    flow.redirect_uri = flask.request.base_url + "/callback"
+    flow.redirect_uri = flask.request.host_url + "api/user-api/login/callback"
     # Enable offline access so that you can refresh an access token without
     # re-prompting the user for permission. Recommended for web server apps.
     # Enable incremental authorization. Recommended as a best practice.
@@ -87,7 +92,7 @@ def callback():
     logging.info("Comparing state.")
 
     flow = Flow.from_client_secrets_file("./client_secret.json", scopes=google_scopes, state=state)
-    flow.redirect_uri = flask.url_for("callback", _external=True)
+    flow.redirect_uri = flask.request.host_url + "api/user-api/login/callback"
 
     # Use the authorization server's response to fetch the OAuth 2.0 tokens.
     authorization_response = flask.request.url
@@ -97,7 +102,6 @@ def callback():
     credentials_dict = credentials_to_dict(credentials)
 
     token_id = flow.oauth2session.token["id_token"] 
-    
     try:
         logging.info("Verify ID token.")
         idinfo = id_token.verify_oauth2_token(token_id, Request(), GOOGLE_CLIENT_ID)
@@ -105,7 +109,7 @@ def callback():
         logging.info("ID token is valid.")
     except ValueError:
         logging.info("Invalid token.")
-        return flask.jsonify({"error": "Sorry, invalid token."})
+        return flask.jsonify({"error": f"Sorry, invalid token. {ValueError}"})
 
     # Adding new user info (sub id and creds) into the db, if the user still don't  exist.
     logging.info("Querying db.")
@@ -127,8 +131,7 @@ def callback():
 
     logging.info("Creating JWT.")
     jwt_token = jwt.encode(idinfo, JWT_SECRET, JWT_ALGORITHM)
-     
-    resp = flask.make_response(flask.redirect("http://127.0.0.1:3000/tasks"))
+    resp = flask.make_response(flask.redirect(flask.request.host_url))
     logging.info("Setting cookie.")
     resp.set_cookie("jwt", jwt_token)
     return resp
@@ -213,8 +216,8 @@ def user_settings():
                 logging.info("Getting data from the front-end")
 
                 user.user_preference = user_preference
-                user.sprint_start_time = sprint_start_date
-                user.sprint_end_time = sprint_end_date
+                user.sprint_start_date = sprint_start_date
+                user.sprint_end_date = sprint_end_date
                 user.start_work_hours = start_work_hours
                 user.end_work_hours = end_work_hours
                 db.session.commit()
@@ -259,6 +262,13 @@ def get_user_details():
                 user_sprint_end_date = user.sprint_end_date
                 user_start_work_hours = user.start_work_hours
                 user_end_work_hours = user.end_work_hours
+
+                if user_sprint_start_date == "":
+                    user_sprint_start_date = datetime.datetime.now()
+                
+                if user_sprint_end_date == "":
+                    user_sprint_end_date = datetime.datetime.now()
+                
                 return flask.jsonify(user_details={"sub": sub, "userCredentials": user_creds_json, "userPreference": user_preference,
                  "userSprintStartDate": user_sprint_start_date, "userSprintEndtDate": user_sprint_end_date, "userStartWorkHours": user_start_work_hours, "userEndWorkHours": user_end_work_hours}), 200
             else:
@@ -279,11 +289,11 @@ def get_user_details():
 
 @app.route('/logout')
 def logout():
-    resp = flask.make_response(flask.redirect("http://127.0.0.1:3000"))
+    resp = flask.make_response(flask.redirect(flask.request.host_url))
     resp.delete_cookie("jwt")
     logging.info("User loged out.")
     return resp
 
 if __name__ == '__main__':
-    app.run(port=5000, debug=True)
+    app.run(host="0.0.0.0", port=80, debug=True)
 
