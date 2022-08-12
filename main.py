@@ -1,9 +1,9 @@
 import os
 import json
-import datetime
 import flask
 import jwt
 import logging
+from datetime import datetime, timedelta
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 import requests
@@ -59,6 +59,20 @@ def credentials_to_dict(credentials):
         'client_id': credentials.client_id,
         'client_secret': credentials.client_secret,
         'scopes': credentials.scopes}
+
+#------------------------------------------FUNCTIONS------------------------------------
+
+def default_sprint_start():
+    today = datetime.today()
+    tomorrow = today + timedelta(days=1)
+
+    return datetime.strftime(tomorrow, "%d/%m/%Y")
+
+def default_sprint_end():
+    today = datetime.today()
+    tomorrow = today + timedelta(days=15)
+
+    return datetime.strftime(tomorrow, "%d/%m/%Y")
 
 
 #--------------------------------APP--------------------------------------------------
@@ -120,8 +134,8 @@ def callback():
             credentials = json.dumps(credentials_dict),
             sub = sub_id,
             user_preference = "",
-            sprint_start_date = "",
-            sprint_end_date = "",
+            sprint_start_date = default_sprint_start(),
+            sprint_end_date = default_sprint_end(),
             start_work_hours = 9,
             end_work_hours = 19
         )
@@ -266,12 +280,47 @@ def get_user_details():
                 user_sprint_end_date = user.sprint_end_date
                 user_start_work_hours = user.start_work_hours
                 user_end_work_hours = user.end_work_hours
-
-                if user_sprint_start_date == "":
-                    user_sprint_start_date = datetime.datetime.now()
                 
-                if user_sprint_end_date == "":
-                    user_sprint_end_date = datetime.datetime.now()
+                return flask.jsonify(user_details={
+                 "userSprintStartDate": user_sprint_start_date, "userSprintEndtDate": user_sprint_end_date, "userStartWorkHours": user_start_work_hours, "userEndWorkHours": user_end_work_hours}), 200
+            else:
+                logging.info("User not found in DB.")
+                return flask.jsonify({"error": "User not found in DB"}), 404
+        else:
+            logging.info("JWT token not valid.")
+            return flask.jsonify({"error": "Not valid token"}), 403
+
+    except jwt.ExpiredSignatureError:
+        response = flask.jsonify({"status": 401, "error": "Expried permissons!"})
+        return response, 401
+    except ValueError:
+        print(ValueError)
+        response = flask.jsonify({"status": 401, "error": "Not Valid creds!"})
+        return response, 401
+
+@app.route('/get-user-private-details')
+def user_private_details():
+    if not flask.request.cookies.get("jwt"):
+        logging.info("JWT not found.")
+        response = flask.jsonify({"status": 401, "error": "Missing Creds"})
+        return response, 401
+
+    try:
+        logging.info("Decoding JWT.")
+        cookie_jwt = jwt.decode(flask.request.cookies.get("jwt"), JWT_SECRET, JWT_ALGORITHM, audience=GOOGLE_CLIENT_ID)
+        if cookie_jwt:
+            logging.info("JWT decoded.")
+            sub = cookie_jwt["sub"]
+            logging.info("Searching user by JWT.")
+            user = UsersSprintManager.query.filter_by(sub=sub).first()
+            if user:
+                logging.info("User found.")
+                user_creds_json = json.loads(user.credentials)
+                user_preference = user.user_preference
+                user_sprint_start_date = user.sprint_start_date
+                user_sprint_end_date = user.sprint_end_date
+                user_start_work_hours = user.start_work_hours
+                user_end_work_hours = user.end_work_hours
                 
                 return flask.jsonify(user_details={"sub": sub, "userCredentials": user_creds_json, "userPreference": user_preference,
                  "userSprintStartDate": user_sprint_start_date, "userSprintEndtDate": user_sprint_end_date, "userStartWorkHours": user_start_work_hours, "userEndWorkHours": user_end_work_hours}), 200
@@ -289,7 +338,6 @@ def get_user_details():
         print(ValueError)
         response = flask.jsonify({"status": 401, "error": "Not Valid creds!"})
         return response, 401
-
 
 @app.route('/logout')
 def logout():
