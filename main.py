@@ -281,7 +281,7 @@ def get_user_details():
                 user_start_work_hours = user.start_work_hours
                 user_end_work_hours = user.end_work_hours
                 
-                return flask.jsonify(user_details={
+                return flask.jsonify(user_details={"sub": sub, "userCredentials": user_creds_json,
                  "userSprintStartDate": user_sprint_start_date, "userSprintEndtDate": user_sprint_end_date, "userStartWorkHours": user_start_work_hours, "userEndWorkHours": user_end_work_hours}), 200
             else:
                 logging.info("User not found in DB.")
