@@ -1,3 +1,4 @@
+from asyncio.log import logger
 import os
 import json
 import flask
@@ -259,47 +260,6 @@ def user_settings():
 
 @app.route('/get-user-details', methods=["GET", "POST"])
 def get_user_details():
-    if not flask.request.cookies.get("jwt"):
-        logging.info("JWT not found.")
-        response = flask.jsonify({"status": 401, "error": "Missing Creds"})
-        return response, 401
-
-    try:
-        logging.info("Decoding JWT.")
-        cookie_jwt = jwt.decode(flask.request.cookies.get("jwt"), JWT_SECRET, JWT_ALGORITHM, audience=GOOGLE_CLIENT_ID)
-        if cookie_jwt:
-            logging.info("JWT decoded.")
-            sub = cookie_jwt["sub"]
-            logging.info("Searching user by JWT.")
-            user = UsersSprintManager.query.filter_by(sub=sub).first()
-            if user:
-                logging.info("User found.")
-                user_creds_json = json.loads(user.credentials)
-                user_preference = user.user_preference
-                user_sprint_start_date = user.sprint_start_date
-                user_sprint_end_date = user.sprint_end_date
-                user_start_work_hours = user.start_work_hours
-                user_end_work_hours = user.end_work_hours
-                
-                return flask.jsonify(user_details={"sub": sub, "userCredentials": user_creds_json,
-                 "userSprintStartDate": user_sprint_start_date, "userSprintEndtDate": user_sprint_end_date, "userStartWorkHours": user_start_work_hours, "userEndWorkHours": user_end_work_hours}), 200
-            else:
-                logging.info("User not found in DB.")
-                return flask.jsonify({"error": "User not found in DB"}), 404
-        else:
-            logging.info("JWT token not valid.")
-            return flask.jsonify({"error": "Not valid token"}), 403
-
-    except jwt.ExpiredSignatureError:
-        response = flask.jsonify({"status": 401, "error": "Expried permissons!"})
-        return response, 401
-    except ValueError:
-        print(ValueError)
-        response = flask.jsonify({"status": 401, "error": "Not Valid creds!"})
-        return response, 401
-
-@app.route('/get-user-private-details')
-def user_private_details():
     if not flask.request.cookies.get("jwt"):
         logging.info("JWT not found.")
         response = flask.jsonify({"status": 401, "error": "Missing Creds"})
